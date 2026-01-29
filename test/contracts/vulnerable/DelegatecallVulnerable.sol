@@ -39,11 +39,11 @@ contract DelegatecallVulnerable {
      * @notice VULNERABILITY: Delegatecall to user-supplied library
      * @dev Even with access control, user controls the library address
      */
-    function callLibrary(address library, bytes memory data) public {
+    function callLibrary(address lib, bytes memory data) public {
         require(authorized[msg.sender], "Not authorized");
 
         // VULNERABILITY: Authorized user controls library address
-        (bool success, ) = library.delegatecall(data);
+        (bool success, ) = lib.delegatecall(data);
         require(success, "Delegatecall failed");
     }
 
@@ -143,7 +143,7 @@ contract DelegatecallAttacker {
     MaliciousImplementation public malicious;
 
     constructor(address _victim) {
-        victim = DelegatecallVulnerable(_victim);
+        victim = DelegatecallVulnerable(payable(_victim));
         malicious = new MaliciousImplementation();
     }
 

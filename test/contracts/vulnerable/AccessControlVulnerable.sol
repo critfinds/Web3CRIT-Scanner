@@ -118,7 +118,7 @@ contract PhishingAttacker {
     AccessControlVulnerable public victim;
 
     constructor(address _victim) {
-        victim = AccessControlVulnerable(_victim);
+        victim = AccessControlVulnerable(payable(_victim));
     }
 
     function attack() public {

@@ -105,12 +105,15 @@ class SignatureReplayDetector extends BaseDetector {
       'meta',
       'verify',
       'signature',
-      'nonce',
-      'execute'
+      'nonce'
     ];
 
-    return signaturePatterns.some(pattern => pattern.test(code)) ||
-           namePatterns.some(pattern => funcNameLower.includes(pattern));
+    // IMPORTANT: do NOT classify generic "execute*" functions as signature-based.
+    // This prevents false positives on functions like executeFlashLoan(), execute(), etc.
+    const hasSignatureOps = signaturePatterns.some(pattern => pattern.test(code));
+    const nameIndicatesSig = namePatterns.some(pattern => funcNameLower.includes(pattern));
+
+    return hasSignatureOps || nameIndicatesSig;
   }
 
   /**

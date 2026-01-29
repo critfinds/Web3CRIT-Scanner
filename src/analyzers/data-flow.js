@@ -14,6 +14,7 @@ class DataFlowAnalyzer {
     this.stateVariableTaints = new Map(); // state var -> taint info
     this.arithmeticOperations = []; // Track arithmetic for precision loss
     this.valueFlows = []; // Track ETH/token value flows
+    this.oracleValueFlows = []; // Track oracle-derived values flowing into value-moving operations
   }
 
   /**
@@ -26,6 +27,7 @@ class DataFlowAnalyzer {
     this.stateVariableTaints.clear();
     this.arithmeticOperations = [];
     this.valueFlows = [];
+    this.oracleValueFlows = [];
 
     // Phase 1: Identify all taint sources
     this.identifyTaintSources();
@@ -47,7 +49,8 @@ class DataFlowAnalyzer {
       stateVariableTaints: this.stateVariableTaints,
       dataFlows: this.dataFlows,
       arithmeticOperations: this.arithmeticOperations,
-      valueFlows: this.valueFlows
+      valueFlows: this.valueFlows,
+      oracleValueFlows: this.oracleValueFlows
     };
   }
 
@@ -139,6 +142,29 @@ class DataFlowAnalyzer {
         }
       }
     });
+  }
+
+  /**
+   * Detect whether a function call expression looks like an oracle read.
+   * This is intentionally conservative and used to taint *oracle-derived values*,
+   * which can enable oracle->profit/dataflow checks.
+   */
+  isOracleRead(node) {
+    if (!node) return false;
+    // Covers common Chainlink, Uniswap, and "median price" style oracles
+    const expr = this.nodeToString(node);
+    const oraclePatterns = [
+      /latestRoundData\s*\(/i,
+      /latestAnswer\s*\(/i,
+      /\.getReserves\s*\(\s*\)/i,
+      /\.slot0\s*\(\s*\)/i,
+      /\.observe\s*\(/i,
+      /getMedianPrice\s*\(/i,
+      /consult\s*\(/i,
+      /priceCumulative/i,
+      /cumulativePrice/i
+    ];
+    return oraclePatterns.some(p => p.test(expr));
   }
 
   /**
@@ -251,6 +277,16 @@ class DataFlowAnalyzer {
 
     const exprStr = this.nodeToString(node);
 
+    // Oracle read is a taint source (even if no user input involved)
+    if (node.type === 'FunctionCall' && this.isOracleRead(node)) {
+      return {
+        type: 'oracle_read',
+        source: exprStr,
+        confidence: 'HIGH',
+        exploitability: 'HIGH'
+      };
+    }
+
     // Direct taint source
     if (this.taintedExpressions.has(exprStr)) {
       return this.taintedExpressions.get(exprStr);
@@ -282,6 +318,15 @@ class DataFlowAnalyzer {
     }
 
     if (node.type === 'FunctionCall' && node.arguments) {
+      // Also consider oracle reads on the callee expression (e.g., oracle.latestRoundData())
+      if (this.isOracleRead(node)) {
+        return {
+          type: 'oracle_read',
+          source: exprStr,
+          confidence: 'HIGH',
+          exploitability: 'HIGH'
+        };
+      }
       for (const arg of node.arguments) {
         const argTaint = this.isExpressionTainted(arg, funcKey);
         if (argTaint) return argTaint;
@@ -390,6 +435,47 @@ class DataFlowAnalyzer {
           // (would need loop context tracking)
 
           this.valueFlows.push(flow);
+        }
+      });
+
+      // Additionally: detect oracle-derived values used as amounts in value-moving calls.
+      // This enables oracle manipulation detectors to reduce pure-regex false positives.
+      if (!funcInfo.node || !funcInfo.node.body) continue;
+      const self = this;
+
+      parser.visit(funcInfo.node.body, {
+        FunctionCall(node) {
+          // Identify value-moving calls: transfer(to, amount), transferFrom(from,to,amount), mint(to,amount), burn(amount)
+          const callee = self.nodeToString(node.expression).toLowerCase();
+          if (!callee) return;
+
+          const isValueMoving =
+            /transferfrom\s*\(/.test(callee) ||
+            /transfer\s*\(/.test(callee) ||
+            /mint\s*\(/.test(callee) ||
+            /_mint\s*\(/.test(callee) ||
+            /burn\s*\(/.test(callee) ||
+            /_burn\s*\(/.test(callee);
+
+          if (!isValueMoving) return;
+
+          // Heuristic: last argument is commonly the amount
+          const args = node.arguments || [];
+          if (args.length === 0) return;
+          const amountNode = args[args.length - 1];
+          const amountExpr = self.nodeToString(amountNode);
+          const amountTaint = self.isExpressionTainted(amountNode, funcKey);
+
+          if (amountTaint && amountTaint.type === 'oracle_read') {
+            self.oracleValueFlows.push({
+              function: funcKey,
+              contract: funcInfo.contract,
+              operation: callee,
+              amountExpr,
+              oracleSource: amountTaint.source,
+              loc: node.loc
+            });
+          }
         }
       });
     }

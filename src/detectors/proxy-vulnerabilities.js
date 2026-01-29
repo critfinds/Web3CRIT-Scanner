@@ -363,31 +363,42 @@ class ProxyVulnerabilitiesDetector extends BaseDetector {
    * Check if function is an upgrade function
    */
   isUpgradeFunction(funcName, code) {
-    const upgradeKeywords = ['upgrade', 'upgradeTo', 'upgradeToAndCall', 'changeImplementation'];
-    const nameLower = funcName.toLowerCase();
+    const nameLower = (funcName || '').toLowerCase();
     const codeLower = code.toLowerCase();
-    
-    // Check if it's an upgrade function
-    const isUpgrade = upgradeKeywords.some(keyword => 
-      nameLower.includes(keyword) || codeLower.includes(keyword)
-    ) || (codeLower.includes('delegatecall') && codeLower.includes('implementation'));
-    
+
+    // Skip fallback and receive functions - these are for delegation, not upgrades
+    if (nameLower === 'fallback' || nameLower === '' || nameLower === 'receive') {
+      return false;
+    }
+
+    // Check for explicit upgrade function names
+    const upgradeKeywords = ['upgrade', 'upgradeto', 'upgradetoandcall', 'changeimplementation',
+                            'setimplementation', 'updateimplementation'];
+    const hasUpgradeKeyword = upgradeKeywords.some(keyword =>
+      nameLower.includes(keyword)
+    );
+
+    // Check for implementation assignment pattern (not just usage)
+    // e.g., implementation = newImpl, _setImplementation(newImpl)
+    const hasImplementationWrite = /implementation\s*=|_setimplementation\s*\(|_upgrade\s*\(/i.test(code);
+
+    const isUpgrade = hasUpgradeKeyword || hasImplementationWrite;
+
     // Only consider it an upgrade function if it's in a contract that looks like a proxy
-    // Skip if it's in a regular contract (not a proxy pattern)
     if (isUpgrade) {
       const contractNameLower = (this.currentContract || '').toLowerCase();
-      const isProxyContract = this.proxyPatterns.uups || this.proxyPatterns.transparent || 
+      const isProxyContract = this.proxyPatterns.uups || this.proxyPatterns.transparent ||
                              this.proxyPatterns.beacon || this.proxyPatterns.diamond ||
-                             contractNameLower.includes('proxy') || 
+                             contractNameLower.includes('proxy') ||
                              contractNameLower.includes('upgradeable') ||
                              contractNameLower.includes('implementation');
-      
+
       if (!isProxyContract) {
         // Not a proxy contract, skip
         return false;
       }
     }
-    
+
     return isUpgrade;
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "web3crit-scanner",
-  "version": "4.0.0",
-  "description": "Enhanced smart contract vulnerability scanner with control flow and data flow analysis",
+  "version": "6.0.0",
+  "description": "Top-tier exploit-driven DeFi scanner for Immunefi High/Critical payouts. Models flash loans, MEV, and adversarial capabilities.",
   "main": "src/scanner-enhanced.js",
   "bin": {
     "web3crit": "./bin/web3crit"
@@ -9,7 +9,8 @@
   "scripts": {
     "test": "node test/test.js",
     "install-global": "npm install -g .",
-    "scan": "node src/cli.js scan"
+    "scan": "node src/cli.js scan",
+    "scan:immunefi": "node src/cli.js scan --immunefi-only"
   },
   "preferGlobal": true,
   "files": [
@@ -27,7 +28,12 @@
     "ethereum",
     "defi",
     "reentrancy",
-    "access-control",
+    "flash-loan",
+    "immunefi",
+    "bug-bounty",
+    "exploit",
+    "governance",
+    "vault",
     "static-analysis"
   ],
   "author": "critfinds <jsbtc1@proton.me>",

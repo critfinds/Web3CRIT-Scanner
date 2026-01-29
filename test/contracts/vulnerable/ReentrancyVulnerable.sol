@@ -80,7 +80,7 @@ contract ReentrancyAttacker {
     uint256 public attackCount;
 
     constructor(address _victim) {
-        victim = ReentrancyVulnerable(_victim);
+        victim = ReentrancyVulnerable(payable(_victim));
     }
 
     function attack() public payable {

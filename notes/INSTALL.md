@@ -52,6 +52,12 @@ web3crit scan MyContract.sol --severity critical
 
 # Save results to file
 web3crit scan MyContract.sol --output report.json --format json
+
+# Exploit-driven (attach exploit chains + Immunefi classification)
+web3crit scan MyContract.sol --exploit-driven
+
+# Strict Immunefi payout-eligible findings only
+web3crit scan MyContract.sol --immunefi-only
 ```
 
 ### Multi-Contract Scanning
@@ -70,7 +76,22 @@ web3crit scan ./src --severity high
 
 # Scan and create markdown report
 web3crit scan ./contracts --format markdown --output audit-report.md
+
+# Strict Immunefi mode (High/Critical payout-eligible only)
+web3crit scan ./contracts --immunefi-only
 ```
+
+## Foundry PoC Validation (Optional but Recommended for High-Value Targets)
+
+To drop High/Critical findings unless their attached Foundry PoCs pass under `forge`, run inside a Foundry project:
+
+```bash
+web3crit scan . --immunefi-only --poc-validate --poc-require-pass --foundry-root .
+```
+
+Notes:
+- Requires Foundry (`forge`) installed and a `foundry.toml` at `--foundry-root`.
+- The scanner repo itself is not a Foundry project; this gate is intended for target protocol repos.
 
 **Example with multiple contracts:**
 ```bash

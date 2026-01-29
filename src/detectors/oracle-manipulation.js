@@ -242,23 +242,40 @@ class OracleManipulationDetector extends BaseDetector {
   }
 
   analyzeOraclePatterns() {
-    // Analyze spot price usages
+    // HARDENED: Use data flow analysis to verify oracle values flow to value-moving operations
+    // This significantly reduces false positives from pattern-only detection
+    const oracleValueFlows = this.dataFlow?.oracleValueFlows || [];
+
+    // Analyze spot price usages - require data flow proof
     for (const usage of this.oracleUsages) {
-      if (usage.risk === 'CRITICAL' && usage.flowsToValue) {
+      // Check if we have data flow evidence that oracle flows to value operation
+      const hasDataFlowProof = oracleValueFlows.some(flow =>
+        flow.function.includes(usage.function) ||
+        flow.contract === this.currentContract
+      );
+
+      // Require either data flow proof OR strong heuristic evidence
+      const hasStrongEvidence = usage.flowsToValue && usage.risk === 'CRITICAL';
+
+      if (usage.risk === 'CRITICAL' && (hasDataFlowProof || hasStrongEvidence)) {
         this.reportSpotPriceVulnerability(usage);
-      } else if (usage.risk === 'HIGH' && usage.flowsToValue) {
+      } else if (usage.risk === 'HIGH' && hasDataFlowProof) {
+        // Only report HIGH risk if we have data flow proof
         this.reportHighRiskOracleUsage(usage);
       }
+      // Skip reporting if no data flow proof - reduces false positives
     }
 
-    // Analyze TWAP usages
+    // Analyze TWAP usages - only report very short windows
     for (const usage of this.twapUsages) {
-      if (!usage.windowSafe) {
+      // Tighten: only report if window is dangerously short (< 10 minutes)
+      // 10-30 minute windows are marginal, not critical
+      if (usage.windowSeconds !== null && usage.windowSeconds < 600) {
         this.reportShortTWAPWindow(usage);
       }
     }
 
-    // Analyze Chainlink usages
+    // Analyze Chainlink usages - only report missing critical checks
     for (const feed of this.chainlinkFeeds) {
       this.analyzeChainlinkVulnerabilities(feed);
     }

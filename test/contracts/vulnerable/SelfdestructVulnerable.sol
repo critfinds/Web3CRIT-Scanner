@@ -124,6 +124,10 @@ contract ProxyWithSelfdestruct {
         selfdestruct(recipient);
     }
 
+    receive() external payable {
+        // Accept ETH transfers
+    }
+
     fallback() external payable {
         address impl = implementation;
         assembly {
@@ -155,7 +159,7 @@ contract SelfdestructAttacker {
     SelfdestructVulnerable public victim;
 
     constructor(address _victim) {
-        victim = SelfdestructVulnerable(_victim);
+        victim = SelfdestructVulnerable(payable(_victim));
     }
 
     /**

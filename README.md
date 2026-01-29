@@ -4,18 +4,38 @@
   <img src="web3crit-scanner_animated.gif" alt="WEB3CRIT Scanner Gif" width="250">
 </p>
 
-**Enhanced smart contract vulnerability scanner with control flow and data flow analysis**
+**Production-grade smart contract vulnerability scanner for $5M+ TVL protocols and Immunefi High/Critical bounties**
 
-Web3CRIT Scanner is a production-grade static analysis tool for Solidity smart contracts. Version 4.0.0 features advanced logic-based detection using control flow graphs and data flow analysis, moving beyond simple pattern matching to provide accurate, exploitable vulnerability detection.
+Web3CRIT Scanner is an exploit-driven static analysis tool for Solidity smart contracts. **v6.0.0** introduces **Production Mode** - a strict PoC-gating system that only emits HIGH/CRITICAL findings when a Foundry PoC compiles, executes, and proves real impact (fund drain, unauthorized transfer, role takeover, invariant break, or permanent DoS).
+
+## Production Mode (NEW in v6.0.0)
+
+For bug bounty submissions and professional audits, use `--production` to enforce:
+
+```bash
+web3crit scan ./contracts --production --foundry-root /path/to/foundry-project
+```
+
+**Hard Rules Enforced:**
+- HIGH/CRITICAL only emitted if Foundry PoC compiles, executes, and proves impact
+- Impact must be: fund drain, unauthorized transfer, role takeover, invariant break, or permanent DoS
+- If PoC fails to compile, run, or show impact → discarded silently
+- Severity derived from observed PoC results, not heuristics
+- No placeholder PoCs, no symbolic-only exploits
 
 ## Key Features
 
+- **Production Mode (NEW)** - Strict PoC-gating for HIGH/CRITICAL with proven impact verification
 - **Control Flow Graph Analysis** - Tracks execution paths and function call relationships across contracts
 - **Data Flow Analysis** - Traces tainted user inputs to dangerous operations (delegatecall, selfdestruct, etc.)
+- **Oracle → Value Flow Tracking** - Detects oracle reads flowing into value-moving operations (transfer/mint/burn/refunds)
+- **Immunefi Classification** - Maps findings to Immunefi payout categories (Direct Theft, Protocol Insolvency, etc.)
+- **Exploit Chain Modeling** - Models attack assumptions (flash loans, MEV, malicious contracts)
+- **Foundry PoC Execution** - Compiles and runs PoCs with impact extraction from forge output
+- **Fork Testing Support** - `--fork-url` enables on-chain state verification
 - **Multi-Contract Scanning** - Scan entire directories of Solidity files at once
-- **Enhanced Reentrancy Detection** - Detects classic, cross-function, and read-only reentrancy with exploitability verification
+- **Enhanced Reentrancy Detection** - Detects classic, cross-function, callback, and cross-contract reentrancy
 - **Access Control Validation** - Analyzes what modifiers actually do, not just that they exist
-- **Exploitability Verification** - Only reports issues that are realistically exploitable
 - **npm Installable** - Install globally and use alongside Slither, Mythril, Aderyn, Manticore
 - **Multiple Output Formats** - JSON, Markdown, Table, or Plain Text
 
@@ -71,6 +91,12 @@ web3crit scan MyContract.sol --format json
 
 # Critical issues only
 web3crit scan MyContract.sol --severity critical
+
+# Exploit-driven (attach exploit chains + Immunefi classification)
+web3crit scan MyContract.sol --exploit-driven
+
+# Strict Immunefi mode (High/Critical payout-eligible only)
+web3crit scan MyContract.sol --immunefi-only
 ```
 
 ### Multiple Contracts
@@ -100,7 +126,7 @@ cat slither-results.json | jq '.results.detectors | length'
 
 ## Vulnerability Detectors
 
-Web3CRIT v5.2.0 includes enhanced detectors with logic-based analysis, plus specialized detectors for high-value TVL contracts:
+Web3CRIT v6.0.0 includes enhanced detectors with logic-based analysis, plus specialized detectors for high-value TVL contracts and exploit-driven gating.
 
 ### Core Enhanced Detectors
 
@@ -509,9 +535,20 @@ Options:
   -o, --output <file>      Save report to file
   -f, --format <format>    Output format (table|json|markdown|text) (default: "table")
   -v, --verbose            Verbose output
+  --exploit-driven         Enable exploit-driven analysis (attach exploit chains + Immunefi classification)
+  --immunefi-only          Strict Immunefi mode (only keep High/Critical payout-eligible findings)
+  --poc-validate           Validate attached Foundry PoCs (drop findings whose PoCs fail validation)
+  --poc-require-pass       Require PoCs to compile+pass under forge (requires foundry.toml + forge installed)
+  --poc-mode <mode>        PoC validation mode: test|build (default: test)
+  --foundry-root <path>    Path to Foundry project root (directory containing foundry.toml)
+  --poc-keep-temp          Keep temporary test files written during PoC validation
   --no-banner              Disable banner
   -h, --help               Display help
 ```
+
+## Foundry PoC Validation (Important)
+
+The scanner repo is **not** a Foundry project. `--poc-require-pass` is intended to be run **inside the target protocol repo** (or with `--foundry-root`) so PoCs can be compiled and executed via `forge test`.
 
 ## Examples
 

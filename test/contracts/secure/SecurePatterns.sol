@@ -228,6 +228,10 @@ contract SecureUpgradeable {
         approvedImplementations[impl] = true;
     }
 
+    receive() external payable {
+        // Accept ETH transfers
+    }
+
     fallback() external payable {
         address impl = implementation;
         require(impl != address(0), "No implementation set");

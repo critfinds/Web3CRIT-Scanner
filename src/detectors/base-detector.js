@@ -96,31 +96,48 @@ class BaseDetector {
   /**
    * Calculate exploitability score based on finding characteristics
    * Score: 0-100 where higher = more likely exploitable
+   *
+   * HARDENED: More aggressive scoring to filter noise
+   * - Require HIGH confidence for high scores
+   * - Penalize theoretical/best-practice issues
+   * - Bonus for concrete attack vectors
    */
   calculateExploitabilityScore(vulnerability) {
-    let score = 50; // Base score
+    let score = 40; // Base score (lowered from 50)
 
-    // Severity impact
+    // Severity impact (unchanged)
     const severityScores = {
       'CRITICAL': 30,
       'HIGH': 20,
-      'MEDIUM': 10,
-      'LOW': 0,
-      'INFO': -20
+      'MEDIUM': 5,  // Reduced from 10
+      'LOW': -10,   // Penalty
+      'INFO': -30   // Stronger penalty
     };
     score += severityScores[vulnerability.severity] || 0;
 
-    // Confidence impact
+    // Confidence impact (increased importance)
     const confidenceScores = {
-      'HIGH': 20,
+      'HIGH': 25,   // Increased from 20
       'MEDIUM': 0,
-      'LOW': -20
+      'LOW': -25    // Stronger penalty
     };
     score += confidenceScores[vulnerability.confidence] || 0;
 
-    // Exploitable flag
+    // Exploitable flag (stronger impact)
     if (vulnerability.exploitable === false) {
-      score -= 30;
+      score -= 40; // Increased penalty
+    } else if (vulnerability.exploitable === true) {
+      score += 10; // Bonus for confirmed exploitable
+    }
+
+    // Bonus for concrete attack vector (not 'unknown')
+    if (vulnerability.attackVector && vulnerability.attackVector !== 'unknown') {
+      score += 5;
+    }
+
+    // Bonus for having Foundry PoC
+    if (vulnerability.foundryPoC) {
+      score += 10;
     }
 
     // Clamp to 0-100

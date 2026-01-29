@@ -44,6 +44,12 @@ class TokenStandardComplianceDetector extends BaseDetector {
     this.cfg = cfg;
     this.dataFlow = dataFlow;
 
+    // Reset per-file state
+    this.tokenStandard = null;
+    this.foundFunctions.clear();
+    this.foundEvents.clear();
+    this.currentContract = null;
+
     // Detect which standard this contract implements
     this.detectTokenStandard(sourceCode);
 
@@ -99,11 +105,18 @@ class TokenStandardComplianceDetector extends BaseDetector {
    * Detect which ERC standard this contract implements
    */
   detectTokenStandard(sourceCode) {
-    const codeLower = sourceCode.toLowerCase();
+    // Strip imports/comments so "ERC20" in import paths doesn't misclassify non-token contracts
+    const stripped = sourceCode
+      .replace(/^\s*import[^;]*;/gm, '')
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+
+    const codeLower = stripped.toLowerCase();
     
     // Check for explicit ERC standard inheritance or interface implementation
-    const hasERCInterface = /(?:is|implements|interface)\s+(?:IERC|ERC)(\d+)/i.test(sourceCode) ||
-                           /contract\s+\w+\s+(?:is|implements)\s+.*ERC/i.test(sourceCode);
+    const hasERCInterface =
+      /contract\s+\w+\s+(?:is|implements)\s+.*\b(IERC|ERC)\d+\b/i.test(stripped) ||
+      /contract\s+\w+\s+(?:is|implements)\s+.*\bERC\b/i.test(stripped);
     
     // Check for ERC1155 (most specific)
     if (codeLower.includes('erc1155') || 
@@ -129,7 +142,8 @@ class TokenStandardComplianceDetector extends BaseDetector {
     const hasBalanceOf = /function\s+balanceOf/i.test(sourceCode);
     const hasTotalSupply = /function\s+totalSupply/i.test(sourceCode);
     
-    if (codeLower.includes('erc20') || hasERCInterface) {
+    // Only treat as ERC20 if it is explicitly implemented/inherited, or declares core ERC20 functions
+    if (hasERCInterface) {
       this.tokenStandard = 'ERC20';
       return;
     }

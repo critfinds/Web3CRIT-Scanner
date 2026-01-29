@@ -131,7 +131,7 @@ contract FallbackAttacker {
     UncheckedCallsVulnerable public victim;
 
     constructor(address _victim) {
-        victim = UncheckedCallsVulnerable(_victim);
+        victim = UncheckedCallsVulnerable(payable(_victim));
     }
 
     function exploit() public {

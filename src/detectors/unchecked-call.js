@@ -112,13 +112,24 @@ class UncheckedCallDetector extends BaseDetector {
       // If this is a standalone statement (not assigned or checked in if)
       // it means the return value is ignored
       if (parentNode.type === 'ExpressionStatement') {
+        // Determine severity based on call type
+        const isDelegatecall = code.includes('.delegatecall');
+        const hasValue = code.includes('{value:') || code.includes('{value :');
+
         this.addFinding({
           title: 'Unchecked Low-Level Call',
-          description: 'Low-level call (.call(), .delegatecall(), .staticcall()) return value is not checked. Failed calls will be silently ignored, potentially leading to unexpected behavior.',
+          description: `Low-level call (${isDelegatecall ? 'delegatecall' : hasValue ? 'call with value' : 'call'}) return value is not checked. Failed calls will be silently ignored, potentially causing:\n` +
+            `- Fund loss (if sending ETH)\n` +
+            `- State inconsistency (balance decremented but transfer failed)\n` +
+            `- Silent failures in critical operations`,
           location: this.getLocationString(expr.loc),
           line: expr.loc ? expr.loc.start.line : 0,
           column: expr.loc ? expr.loc.start.column : 0,
           code: code,
+          severity: isDelegatecall ? 'CRITICAL' : 'HIGH',
+          confidence: 'HIGH',  // Definite unchecked call
+          exploitable: true,
+          attackVector: 'unchecked-call',
           recommendation: 'Always check the return value of low-level calls. Use require(success, "error message") or implement proper error handling.',
           references: [
             'https://swcregistry.io/docs/SWC-104',
@@ -133,11 +144,15 @@ class UncheckedCallDetector extends BaseDetector {
       if (parentNode.type === 'ExpressionStatement') {
         this.addFinding({
           title: 'Unchecked Send Return Value',
-          description: 'The .send() function returns false on failure, but the return value is not checked. This can lead to unhandled failed transfers.',
+          description: 'The .send() function returns false on failure, but the return value is not checked. This causes fund loss - user balance is decremented but ETH transfer fails silently.',
           location: this.getLocationString(expr.loc),
           line: expr.loc ? expr.loc.start.line : 0,
           column: expr.loc ? expr.loc.start.column : 0,
           code: code,
+          severity: 'HIGH',
+          confidence: 'HIGH',  // Definite unchecked send
+          exploitable: true,
+          attackVector: 'unchecked-call',
           recommendation: 'Check the return value: require(recipient.send(amount), "Send failed"). Consider using .transfer() which reverts on failure, or .call{value: amount}() with proper checks.',
           references: [
             'https://swcregistry.io/docs/SWC-104'

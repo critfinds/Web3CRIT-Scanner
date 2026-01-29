@@ -141,37 +141,56 @@ class ReentrancyEnhancedDetector extends BaseDetector {
   /**
    * Detect read-only reentrancy
    * External call in a view/getter allowing state inconsistency
+   *
+   * HARDENED: Only report if:
+   * 1. Function is used by external protocols (has dependent contracts)
+   * 2. State read is for value calculation (balances, shares, prices)
+   * 3. High confidence of actual exploitation path
+   *
+   * We skip low-confidence read-only reentrancy as it rarely leads to direct fund theft
+   * and creates noise. The Curve LP oracle attack was specific to cross-contract composition.
    */
   detectReadOnlyReentrancy(funcKey, funcInfo) {
-    // Check if function makes external calls but claims to be view/pure
+    // Skip low-value read-only reentrancy detection to reduce noise
+    // Read-only reentrancy requires:
+    // 1. External contract depending on this view function
+    // 2. View function reading state that can be manipulated mid-call
+    // 3. External contract making financial decisions based on stale view
+    //
+    // Without cross-contract analysis, we cannot reliably detect this.
+    // Keeping this disabled to optimize for precision over recall.
+    //
+    // For protocols that need this, recommend manual audit of view functions
+    // called by external protocols (oracles, composability).
+
+    // Only report CRITICAL cases: view/pure function making external calls
+    // This is a code smell that violates the view/pure guarantee
     if (funcInfo.stateMutability === 'view' || funcInfo.stateMutability === 'pure') {
       if (funcInfo.externalCalls.length > 0) {
-        return {
-          func: funcInfo,
-          calls: funcInfo.externalCalls,
-          severity: 'HIGH',
-          confidence: 'MEDIUM'
-        };
-      }
-    }
+        // Check if any external call could trigger reentrancy to state-modifying function
+        const hasCallWithValue = funcInfo.externalCalls.some(c =>
+          c.type === 'call' || c.type === 'delegatecall'
+        );
 
-    // Check for getters that read state during external calls
-    if (funcInfo.externalCalls.length > 0 && funcInfo.stateReads.length > 0) {
-      // If state is read after external call, vulnerable to read-only reentrancy
-      for (const call of funcInfo.externalCalls) {
-        for (const read of funcInfo.stateReads) {
-          if (this.comesBefore(call.loc, read.loc)) {
+        if (hasCallWithValue) {
+          // Only report if function name suggests it's used for pricing/valuation
+          const funcNameLower = funcInfo.name.toLowerCase();
+          const isPricingFunction = /price|value|balance|amount|rate|convert|preview|quote|get.*assets|get.*shares/i.test(funcNameLower);
+
+          if (isPricingFunction) {
             return {
-              call: call,
-              read: read,
-              severity: 'MEDIUM',
-              confidence: 'LOW'
+              func: funcInfo,
+              calls: funcInfo.externalCalls,
+              severity: 'HIGH',
+              confidence: 'MEDIUM'
             };
           }
         }
       }
     }
 
+    // Do NOT report low-confidence read-only reentrancy (state read after external call)
+    // This pattern is too common and rarely exploitable without cross-contract context
     return null;
   }
 
@@ -190,13 +209,7 @@ class ReentrancyEnhancedDetector extends BaseDetector {
       return false;
     }
 
-    // Check 3: Is the state write actually meaningful?
-    if (write.variable === '_status' || write.variable === 'locked') {
-      // Likely a reentrancy guard implementation
-      return false;
-    }
-
-    // Check 4: Does external call allow reentrancy?
+    // Does external call allow reentrancy?
     // Note: Post-Istanbul (EIP-1884), transfer/send with 2300 gas stipend
     // are less reliable due to increased SLOAD costs. While they provide
     // some protection, they should not be considered fully safe.

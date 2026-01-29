@@ -33,3 +33,9 @@ results.json
 # Temporary files
 *.tmp
 *.temp
+
+# Hardhat/Foundry artifacts
+out/
+cache/
+artifacts/
+build-info/

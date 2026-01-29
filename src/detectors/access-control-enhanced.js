@@ -152,24 +152,30 @@ class AccessControlEnhancedDetector extends BaseDetector {
    * Check if function performs sensitive operations
    */
   hasSensitiveOperations(funcInfo) {
-    const sensitiveFunctions = [
-      'withdraw', 'mint', 'burn', 'destroy', 'kill',
-      'setowner', 'transferownership', 'changeowner',
-      'pause', 'unpause', 'emergency',
-      'upgrade', 'initialize', 'setimplementation'
-    ];
-
-    const funcNameLower = funcInfo.name.toLowerCase().replace(/[_\s]/g, '');
-
-    // Check function name
-    if (sensitiveFunctions.some(sf => funcNameLower.includes(sf))) {
-      return true;
-    }
-
     // Check for dangerous operations
     const dangerousOps = ['delegatecall', 'selfdestruct', 'suicide'];
     if (funcInfo.externalCalls.some(call => dangerousOps.includes(call.type))) {
       return true;
+    }
+
+    // Check for direct value-moving operations by inspecting code for transfer/mint/burn patterns.
+    // This is intentionally conservative to avoid name-only false positives (e.g., withdrawInfo()).
+    if (funcInfo.node && funcInfo.node.loc) {
+      const code = (this.getCodeSnippet(funcInfo.node.loc) || '').toLowerCase();
+      const valueMovingPatterns = [
+        /\.transfer\s*\(/,        // ERC20/ETH transfer-like
+        /\.transferfrom\s*\(/,    // ERC20 transferFrom
+        /\.send\s*\(/,            // ETH send
+        /\.call\s*\{[^}]*value/i, // call{value: ...}
+        /\b_mint\s*\(/,
+        /\bmint\s*\(/,
+        /\b_burn\s*\(/,
+        /\bburn\s*\(/,
+        /\bselfdestruct\s*\(/,
+      ];
+      if (valueMovingPatterns.some(p => p.test(code))) {
+        return true;
+      }
     }
 
     // Check if modifies critical state

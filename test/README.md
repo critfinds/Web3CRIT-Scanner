@@ -12,6 +12,7 @@ test/
 │   │   ├── AccessControlVulnerable.sol
 │   │   ├── UncheckedCallsVulnerable.sol
 │   │   ├── DelegatecallVulnerable.sol
+│   │   ├── OracleManipulationVulnerable.sol
 │   │   └── SelfdestructVulnerable.sol
 │   └── secure/              # Secure reference implementations
 │       └── SecurePatterns.sol
@@ -113,6 +114,23 @@ web3crit scan test/contracts/vulnerable/UncheckedCallsVulnerable.sol
 **Expected Output:** Multiple HIGH findings for unchecked calls
 
 ---
+
+### OracleManipulationVulnerable.sol
+
+**Severity:** CRITICAL
+
+**Vulnerabilities Demonstrated:**
+- Spot-price oracle usage (`getReserves`) flowing into value-moving logic
+- Flash-loan manipulable oracle → refund/amount computation
+
+**Expected Detections:**
+- Oracle Manipulation
+- Flash Loan Vulnerability (depending on heuristics)
+
+**Test Command:**
+```bash
+web3crit scan test/contracts/vulnerable/OracleManipulationVulnerable.sol
+```
 
 ### 4. DelegatecallVulnerable.sol
 
