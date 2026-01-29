@@ -1,6 +1,6 @@
 {
   "name": "web3crit-scanner",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "description": "Top-tier exploit-driven DeFi scanner for Immunefi High/Critical payouts. Models flash loans, MEV, and adversarial capabilities.",
   "main": "src/scanner-enhanced.js",
   "bin": {
