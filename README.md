@@ -1,7 +1,7 @@
 # WEB3CRIT Scanner
 
 <p align="center">
-  <img src="web3crit-scanner_animated.gif" alt="WEB3CRIT Scanner Gif" width="250">
+  <img src="web3crit_scanner_animated.gif" alt="WEB3CRIT Scanner Gif" width="250">
 </p>
 
 **Production-grade smart contract vulnerability scanner for $5M+ TVL protocols and Immunefi High/Critical bounties**
